@@ -33,8 +33,10 @@
 #include <superstl.h>
 
 #ifdef DRAMSIM
-#include <DRAMSim.h>
-using DRAMSim::MemorySystem;
+//#include <DRAMSim.h>
+//using DRAMSim::MemorySystem;
+#include <HybridSim.h>
+using HybridSim::HybridSystem;
 #endif
 
 
@@ -84,7 +86,8 @@ class MemoryController : public Controller
 #ifdef DRAMSIM
 		void read_return_cb(uint, uint64_t, uint64_t);
 		void write_return_cb(uint, uint64_t, uint64_t);
-		MemorySystem *mem;
+		//MemorySystem *mem;
+		HybridSystem *mem;
 #endif
 		MemoryController(W8 coreid, char *name,
 				 MemoryHierarchy *memoryHierarchy);
