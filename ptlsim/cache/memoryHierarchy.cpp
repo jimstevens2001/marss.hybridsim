@@ -398,7 +398,7 @@ void MemoryHierarchy::clock()
 void MemoryHierarchy::simulation_done()
 {
 	//do a final dump of statistics in DRAMSim which completes the vis file
-	((MemoryController*)memoryController_)->mem->printStats();	
+	//((MemoryController*)memoryController_)->mem->printStats();	
 }
 #endif
 
