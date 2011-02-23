@@ -455,6 +455,12 @@ static void flush_stats()
 
     if(config.enable_mongo)
         write_mongo_stats();
+
+//FIXME: this assumes that flush_stats is only called at the end, which is true now but might not be true in the long run
+#ifdef DRAMSIM
+    machine->simulation_done();
+#endif
+
 }
 
 static void kill_simulation()
@@ -624,6 +630,13 @@ PTLsimMachine* PTLsimMachine::getmachine(const char* name) {
   if (!p) return null;
   return *p;
 }
+
+#ifdef DRAMSIM
+void PTLsimMachine::simulation_done()
+{
+	assert(0);
+}
+#endif
 
 /* Currently executing machine model: */
 PTLsimMachine* curr_ptl_machine = null;
