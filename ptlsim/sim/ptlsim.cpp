@@ -65,12 +65,14 @@ const char *snapshot_names[] = {"user", "kernel", "global"};
 
 #endif
 
+static void kill_simulation() __attribute__((noreturn));
+static void write_mongo_stats();
+
 void PTLsimConfig::reset() {
   help=0;
   domain = (W64)(-1);
   run = 0;
   stop = 0;
-  native = 0;
   kill = 0;
   flush_command_queue = 0;
   simswitch = 0;
@@ -141,14 +143,10 @@ void PTLsimConfig::reset() {
   realtime = 0;
   mask_interrupts = 0;
   console_mfn = 0;
-  pause = 0;
   perfctr_name.reset();
   force_native = 0;
   kill_after_finish = 0;
   exit_after_finish = 0;
-
-  continuous_validation = 0;
-  validation_start_cycle = 0;
 
   perfect_cache = 0;
 
@@ -162,9 +160,6 @@ void PTLsimConfig::reset() {
   /// memory hierarchy implementation
   ///
 
-  number_of_cores = 1;
-  cores_per_L2 = 1;
-  max_L1_req = 16;
   cache_config_type = "private_L2";
 
   checker_enabled = 0;
@@ -176,6 +171,9 @@ void PTLsimConfig::reset() {
   mongo_port = 27017;
   bench_name = "unknown";
   db_tags = "";
+
+  // Utilities/Tools
+  execute_after_kill = "";
 }
 
 template <>
@@ -188,7 +186,6 @@ void ConfigurationParser<PTLsimConfig>::setup() {
   section("Action (specify only one)");
   add(run,                          "run",                  "Run under simulation");
   add(stop,                         "stop",                 "Stop current simulation run and wait for command");
-  add(native,                       "native",               "Switch to native mode");
   add(kill,                         "kill",                 "Kill PTLsim inside domain (and ptlmon), then shutdown domain");
   add(flush_command_queue,          "flush",                "Flush all queued commands, stop the current simulation run and wait");
   add(simswitch,                    "switch",               "Switch back to PTLsim while in native mode");
@@ -252,15 +249,14 @@ void ConfigurationParser<PTLsimConfig>::setup() {
   add(realtime,                     "realtime",             "Operate in real time: no time dilation (not accurate for I/O intensive workloads!)");
   add(mask_interrupts,              "maskints",             "Mask all interrupts (required for guaranteed deterministic behavior)");
   add(console_mfn,                  "console-mfn",          "Track the specified Xen console MFN");
-  add(pause,                        "pause",                "Pause domain after using -native");
   add(perfctr_name,                 "perfctr",              "Performance counter generic name for hardware profiling during native mode");
   add(force_native,                 "force-native",         "Force native mode: ignore attempts to switch to simulation");
   add(kill_after_finish,            "kill-after-finish",     "kill both simulator and domainU after finish simulation");
   add(exit_after_finish,            "exit-after-finish",     "exit simulator keep domainU after finish simulation");
 
   section("Validation");
-  add(continuous_validation,        "validate",             "Continuous validation: validate against known-good sequential model");
-  add(validation_start_cycle,       "validate-start-cycle", "Start continuous validation after N cycles");
+  add(checker_enabled, 		"enable-checker", 		"Enable emulation based checker");
+  add(checker_start_rip,          "checker-startrip",     "Start checker at specified RIP");
 
   section("Out of Order Core (ooocore)");
   add(perfect_cache,                "perfect-cache",        "Perfect cache performance: all loads and stores hit in L1");
@@ -292,13 +288,7 @@ void ConfigurationParser<PTLsimConfig>::setup() {
 
   section("Memory Hierarchy Configuration");
   //  add(memory_log,               "memory-log",               "log memory debugging info");
-  add(number_of_cores,               "number-of-cores",               "number of cores");
-  add(cores_per_L2,               "cores-per-L2",               "number of cores sharing a L2 cache");
-  add(max_L1_req,               "max-L1-req",               "max number of L1 requests");
   add(cache_config_type,               "cache-config-type",               "possible config are shared_L2, private_L2");
-
-  add(checker_enabled, 		"enable-checker", 		"Enable emulation based checker");
-  add(checker_start_rip,          "checker-startrip",     "Start checker at specified RIP");
 
   // MongoDB
   section("bus configuration");
@@ -307,6 +297,10 @@ void ConfigurationParser<PTLsimConfig>::setup() {
   add(mongo_port,           "mongo-port",           "MongoDB server's port address");
   add(bench_name,           "bench-name",           "Benchmark Name added to database");
   add(db_tags,              "db-tags",              "tags added to database");
+
+  // Utilities/Tools
+  section("options for tools/utilities");
+  add(execute_after_kill,	"execute-after-kill" ,	"Execute a shell command (on the host shell) after simulation receives kill signal");
 };
 
 #ifndef CONFIG_ONLY
@@ -428,12 +422,65 @@ void capture_stats_snapshot(const char* name) {
   statswriter.write(stats, name);
 }
 
-void flush_stats() {
-  statswriter.flush();
-}
-
 void print_sysinfo(ostream& os) {
 	// TODO: In QEMU based system
+}
+
+static void flush_stats()
+{
+    if(config.screenshot_file.buf != "") {
+        qemu_take_screenshot((char*)config.screenshot_file);
+    }
+
+    PTLsimMachine* machine = PTLsimMachine::getmachine(config.core_name.buf);
+    assert(machine);
+    machine->update_stats(stats);
+
+	const char *user_name = "user";
+    strncpy(user_stats.snapshot_name, snapshot_names[0], sizeof(user_name));
+	user_stats.snapshot_uuid = statswriter.next_uuid();
+	statswriter.write(&user_stats, user_name);
+
+	const char *kernel_name = "kernel";
+    strncpy(kernel_stats.snapshot_name, snapshot_names[1], sizeof(kernel_name));
+	kernel_stats.snapshot_uuid = statswriter.next_uuid();
+	statswriter.write(&kernel_stats, kernel_name);
+
+	const char *global_name = "final";
+    strncpy(global_stats.snapshot_name, snapshot_names[2], sizeof(global_name));
+	global_stats.snapshot_uuid = statswriter.next_uuid();
+	statswriter.write(&global_stats, global_name);
+
+	statswriter.close();
+
+    if(config.enable_mongo)
+        write_mongo_stats();
+}
+
+static void kill_simulation()
+{
+    assert(config.kill || config.kill_after_run);
+
+    flush_stats();
+
+    ptl_logfile << "Received simulation kill signal, stopped the simulation and killing the VM\n";
+#ifdef TRACE_RIP
+    ptl_rip_trace.flush();
+    ptl_rip_trace.close();
+#endif
+
+    if (config.execute_after_kill.size() > 0) {
+        ptl_logfile << "Executing: " << config.execute_after_kill << endl;
+        int ret = system(config.execute_after_kill.buf);
+        if(ret != 0) {
+            ptl_logfile << "execute-after-kill command return " << ret << endl;
+        }
+    }
+
+    ptl_logfile.flush();
+    ptl_logfile.close();
+
+    exit(0);
 }
 
 bool handle_config_change(PTLsimConfig& config, int argc, char** argv) {
@@ -449,10 +496,12 @@ bool handle_config_change(PTLsimConfig& config, int argc, char** argv) {
 		ptl_rip_trace.open("ptl_rip_trace");
 #endif
 
-    statswriter.open(config.stats_filename, &_binary_ptlsim_build_ptlsim_dst_start,
-                     &_binary_ptlsim_build_ptlsim_dst_end - &_binary_ptlsim_build_ptlsim_dst_start,
-                     sizeof(PTLsimStats));
-    current_stats_filename = config.stats_filename;
+    if(config.stats_filename.set() && (config.stats_filename != current_stats_filename)) {
+        statswriter.open(config.stats_filename, &_binary_ptlsim_build_ptlsim_dst_start,
+                &_binary_ptlsim_build_ptlsim_dst_end - &_binary_ptlsim_build_ptlsim_dst_start,
+                sizeof(PTLsimStats));
+        current_stats_filename = config.stats_filename;
+    }
 
   if (config.trace_memory_updates_logfile.set() && (config.trace_memory_updates_logfile != current_trace_memory_updates_logfile)) {
     backup_and_reopen_memory_logfile();
@@ -519,7 +568,7 @@ bool handle_config_change(PTLsimConfig& config, int argc, char** argv) {
   if (first_time) {
     if (!config.quiet) {
       print_sysinfo(cerr);
-      if (!(config.run | config.native | config.kill))
+      if (!(config.run | config.kill))
         cerr << "Simulator is now waiting for a 'run' command.", endl, flush;
     }
     print_banner(ptl_logfile, *stats, argc, argv);
@@ -530,10 +579,10 @@ bool handle_config_change(PTLsimConfig& config, int argc, char** argv) {
     first_time = false;
   }
 
-  int total = config.run + config.stop + config.native + config.kill;
+  int total = config.run + config.stop + config.kill;
   if (total > 1) {
-    ptl_logfile << "Warning: only one action (from -run, -stop, -native, -kill) can be specified at once", endl, flush;
-    cerr << "Warning: only one action (from -run, -stop, -native, -kill) can be specified at once", endl, flush;
+    ptl_logfile << "Warning: only one action (from -run, -stop, -kill) can be specified at once", endl, flush;
+    cerr << "Warning: only one action (from -run, -stop, -kill) can be specified at once", endl, flush;
   }
 
   if(config.checker_enabled) {
@@ -622,6 +671,11 @@ extern "C" void ptl_machine_configure(const char* config_str_) {
         configparser.printusage(cerr, config);
         config.help=0;
     }
+
+    if(config.kill) {
+        kill_simulation();
+    }
+
     // reset machine's initalized variable only if it is the first run
 
 
@@ -894,7 +948,7 @@ void setup_ptlsim_switch_all_ctx(Context& last_ctx) {
 void add_bson_PTLsimStats(PTLsimStats *stats, bson_buffer *bb, const char *snapshot_name);
 
 /* Write all the stats to MongoDB */
-void write_mongo_stats() {
+static void write_mongo_stats() {
     bson bout;
     bson_buffer bb;
     char numstr[4];
@@ -1083,7 +1137,6 @@ extern "C" uint8_t ptl_simulate() {
 
     stats = &global_stats;
 	W64 tsc_at_end = rdtsc();
-	machine->update_stats(stats);
 	curr_ptl_machine = null;
 
 	W64 seconds = W64(ticks_to_seconds(tsc_at_end - tsc_at_start));
@@ -1109,39 +1162,8 @@ extern "C" uint8_t ptl_simulate() {
 	cerr << endl;
 	print_stats_in_log();
 
-    if(config.screenshot_file.buf != "") {
-        qemu_take_screenshot((char*)config.screenshot_file);
-    }
-
-	const char *user_name = "user";
-    strncpy(user_stats.snapshot_name, snapshot_names[0], sizeof(user_name));
-	user_stats.snapshot_uuid = statswriter.next_uuid();
-	statswriter.write(&user_stats, user_name);
-
-	const char *kernel_name = "kernel";
-    strncpy(kernel_stats.snapshot_name, snapshot_names[1], sizeof(kernel_name));
-	kernel_stats.snapshot_uuid = statswriter.next_uuid();
-	statswriter.write(&kernel_stats, kernel_name);
-
-	const char *global_name = "final";
-    strncpy(global_stats.snapshot_name, snapshot_names[2], sizeof(global_name));
-	global_stats.snapshot_uuid = statswriter.next_uuid();
-	statswriter.write(&global_stats, global_name);
-
-	statswriter.close();
-
-    if(config.enable_mongo)
-        write_mongo_stats();
-
 	if(config.kill || config.kill_after_run) {
-		ptl_logfile << "Received simulation kill signal, stopped the simulation and killing the VM\n";
-		ptl_logfile.flush();
-		ptl_logfile.close();
-#ifdef TRACE_RIP
-		ptl_rip_trace.flush();
-		ptl_rip_trace.close();
-#endif
-		exit(0);
+        kill_simulation();
 	}
 
 	return 0;
@@ -1180,7 +1202,10 @@ extern "C" void update_progress() {
     //while (sb.size() < 160) sb << ' ';
 
     ptl_logfile << sb, endl;
-    cerr << "\r  ", sb;
+    if (!config.quiet) {
+        cerr << "\r  ", sb;
+    }
+
     last_printed_status_at_ticks = ticks;
     last_printed_status_at_cycle = sim_cycle;
     last_printed_status_at_user_insn = total_user_insns_committed;
@@ -1203,71 +1228,6 @@ void dump_all_info() {
 		curr_ptl_machine->dump_state(ptl_logfile);
 		ptl_logfile.flush();
 	}
-}
-
-
-bool simulate(const char* machinename) {
-  PTLsimMachine* machine = PTLsimMachine::getmachine(machinename);
-
-  if (!machine) {
-    ptl_logfile << "Cannot find core named '", machinename, "'", endl;
-    cerr << "Cannot find core named '", machinename, "'", endl;
-    return 0;
-  }
-
-  if (!machine->initialized) {
-    ptl_logfile << "Initializing core '", machinename, "'", endl;
-    if (!machine->init(config)) {
-      ptl_logfile << "Cannot initialize core model; check its configuration!", endl;
-      return 0;
-    }
-    machine->initialized = 1;
-  }
-
-  ptl_logfile << "Switching to simulation core '", machinename, "'...", endl, flush;
-  cerr <<  "Switching to simulation core '", machinename, "'...", endl, flush;
-  ptl_logfile << "Stopping after ", config.stop_at_user_insns, " commits", endl, flush;
-  cerr << "Stopping after ", config.stop_at_user_insns, " commits", endl, flush;
-
-  /* Update stats every half second: */
-  ticks_per_update = seconds_to_ticks(0.2);
-  //ticks_per_update = seconds_to_ticks(0.1);
-  last_printed_status_at_ticks = 0;
-  last_printed_status_at_user_insn = 0;
-  last_printed_status_at_cycle = 0;
-
-  W64 tsc_at_start = rdtsc();
-  curr_ptl_machine = machine;
-  machine->run(config);
-  W64 tsc_at_end = rdtsc();
-  machine->update_stats(stats);
-  curr_ptl_machine = null;
-
-  W64 seconds = W64(ticks_to_seconds(tsc_at_end - tsc_at_start));
-  stats->elapse_seconds = seconds;
-  stringbuf sb;
-  sb << endl, "Stopped after ", sim_cycle, " cycles, ", total_user_insns_committed, " instructions and ",
-    seconds, " seconds of sim time (cycle/sec: ", W64(double(sim_cycle) / double(seconds)), " Hz, insns/sec: ", W64(double(total_user_insns_committed) / double(seconds)), ", insns/cyc: ",  double(total_user_insns_committed) / double(sim_cycle), ")", endl;
-
-  ptl_logfile << sb, flush;
-  cerr << sb, flush;
-
-  if (config.dumpcode_filename.set()) {
-//    byte insnbuf[256];
-//    PageFaultErrorCode pfec;
-//    Waddr faultaddr;
-//    Waddr rip = contextof(0).eip;
-//    int n = contextof(0).copy_from_user(insnbuf, rip, sizeof(insnbuf), pfec, faultaddr);
-//    ptl_logfile << "Saving ", n, " bytes from rip ", (void*)rip, " to ", config.dumpcode_filename, endl, flush;
-//    ostream(config.dumpcode_filename).write(insnbuf, n);
-  }
-
-  last_printed_status_at_ticks = 0;
-  update_progress();
-  cerr << endl;
-  print_stats_in_log();
-
-  return 0;
 }
 
 extern void shutdown_uops();
