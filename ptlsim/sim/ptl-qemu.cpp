@@ -723,11 +723,11 @@ void Context::update_mode_count() {
     W64 prev_cycles = cycles_at_last_mode_switch;
     W64 prev_insns = insns_at_last_mode_switch;
     W64 delta_cycles = sim_cycle - cycles_at_last_mode_switch;
-    W64 delta_insns = total_user_insns_committed -
+    W64 delta_insns =total_instructions_commited -
         insns_at_last_mode_switch;
 
     cycles_at_last_mode_switch = sim_cycle;
-    insns_at_last_mode_switch = total_user_insns_committed;
+    insns_at_last_mode_switch =total_instructions_commited;
 
     if likely (use64) {
         if(kernel_mode) {

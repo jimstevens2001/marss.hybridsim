@@ -2348,6 +2348,7 @@ int ReorderBufferEntry::commit() {
 
   if likely (uop.eom) {
     total_user_insns_committed++;
+    ctx.total_instructions_commited++;
     per_context_ooocore_stats_update(threadid, commit.insns++);
     thread.total_insns_committed++;
 
