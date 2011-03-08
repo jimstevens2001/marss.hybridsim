@@ -720,6 +720,7 @@ CPUX86State* ptl_create_new_context() {
 
 	// Create a new CPU context and add it to contexts array
 	Context* ctx = new Context();
+        ctx->total_instructions_commited = 0;
 	ptl_contexts[ctx_counter] = ctx;
 	ctx_counter++;
 

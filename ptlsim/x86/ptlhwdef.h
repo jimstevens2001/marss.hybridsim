@@ -819,6 +819,7 @@ struct Context: public CPUX86State {
   W64 insns_at_last_mode_switch;
   W64 user_instructions_commited;
   W64 kernel_instructions_commited;
+  W64 total_instructions_commited;
   W64 exception;
   W64 reg_trace;
   W64 reg_selfrip;
