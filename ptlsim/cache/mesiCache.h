@@ -278,7 +278,7 @@ namespace Memory {
                 int cacheAccessLatency_;
 
                 // A Queue conatining pending requests for this cache
-                FixStateList<CacheQueueEntry, 256> pendingRequests_;
+                FixStateList<CacheQueueEntry, 512> pendingRequests_;
 
                 // Flag to indicate if this cache is lowest private
                 // level cache
@@ -371,7 +371,7 @@ namespace Memory {
                     // or some internal requests (for example, memory update
                     // requests are created internally)
                     if(pendingRequests_.count() >= (
-                                pendingRequests_.size() - 10)) {
+                                pendingRequests_.size() - 20)) {
                         return true;
                     }
                     return false;
