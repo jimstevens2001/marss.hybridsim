@@ -734,6 +734,7 @@ void Context::update_mode_count() {
             per_core_event_update(cpu_index, cycles_in_mode.kernel64 += delta_cycles);
             per_core_event_update(cpu_index, insns_in_mode.kernel64 += delta_insns);
         } else {
+	    total_user_mode_insns_committed += delta_insns;
             per_core_event_update(cpu_index, cycles_in_mode.user64 += delta_cycles);
             per_core_event_update(cpu_index, insns_in_mode.user64 += delta_insns);
         }

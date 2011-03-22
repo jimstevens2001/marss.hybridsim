@@ -51,6 +51,7 @@ W64 iterations = 0;
 W64 total_uops_executed = 0;
 W64 total_uops_committed = 0;
 W64 total_user_insns_committed = 0;
+W64 total_user_mode_insns_committed = 0;
 W64 total_basic_blocks_committed = 0;
 
 W64 last_printed_status_at_ticks;
@@ -124,6 +125,7 @@ void PTLsimConfig::reset() {
   use_memory_model = 0;
   kill_after_run = 0;
   stop_at_user_insns = infinity;
+  stop_at_user_mode_insns = infinity;
   stop_at_cycle = infinity;
   stop_at_iteration = infinity;
   stop_at_rip = INVALIDRIP;
@@ -228,6 +230,7 @@ void ConfigurationParser<PTLsimConfig>::setup() {
   section("Trace Start/Stop Point");
   add(start_at_rip,                 "startrip",             "Start at rip <startrip>");
   add(stop_at_user_insns,           "stopinsns",            "Stop after executing <stopinsns> user instructions");
+  add(stop_at_user_mode_insns,      "stopinsns_user",       "Stop after executing <stopinsns_user> user instructions");
   add(stop_at_cycle,                "stopcycle",            "Stop after <stop> cycles");
   add(stop_at_iteration,            "stopiter",             "Stop after <stop> iterations (does not apply to cycle-accurate cores)");
   add(stop_at_rip,                  "stoprip",              "Stop before rip <stoprip> is translated for the first time");
@@ -1126,7 +1129,7 @@ extern "C" uint8_t ptl_simulate() {
 
 	machine->run(config);
 
-	if (config.stop_at_user_insns <= total_user_insns_committed || config.kill == true
+	if (config.stop_at_user_insns <= total_user_insns_committed || config.stop_at_user_mode_insns <= total_user_mode_insns_committed || config.kill == true
 			|| config.stop == true) {
 		machine->stopped = 1;
 	}

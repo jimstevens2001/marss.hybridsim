@@ -56,6 +56,8 @@ env.Append(CCFLAGS = '-DNUM_SIM_CORES=%d' % int(num_sim_cores))
 if int(num_sim_cores) == 1:
     env.Append(CCFLAGS = '-DSINGLE_CORE_MEM_CONFIG')
 
+# enable shared l3 cache
+env.Append(CCFLAGS = '-DENABLE_L3_CACHE')
 
 # Set all the -D flags
 env.Append(CCFLAGS = '-DNEED_CPU_H')
