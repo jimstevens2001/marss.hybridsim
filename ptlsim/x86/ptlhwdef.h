@@ -955,7 +955,7 @@ struct Context: public CPUX86State {
 
 	  target_ulong ram_addr;
 	  ram_addr = (tlb_addr & TARGET_PAGE_MASK) + tlb_entry->addend;
-      ram_addr = qemu_ram_addr_from_host((void*)ram_addr);
+      ram_addr = qemu_ram_addr_from_host_nofail((void*)ram_addr);
 		  // (unsigned long)(phys_ram_base);
 
 	  bool dirty = false;
@@ -979,7 +979,7 @@ struct Context: public CPUX86State {
 
 	  target_ulong ram_addr;
 	  ram_addr = (tlb_addr & TARGET_PAGE_MASK) + tlb_entry->addend;
-      ram_addr = qemu_ram_addr_from_host((void*)ram_addr);
+      ram_addr = qemu_ram_addr_from_host_nofail((void*)ram_addr);
 		  // (unsigned long)(phys_ram_base);
 
 	  setup_qemu_switch();
@@ -999,6 +999,7 @@ struct Context: public CPUX86State {
 
   void update_mode_count();
   bool check_events() const;
+  bool is_int_pending() const;
   bool event_upcall();
 
   int page_table_level_count() const {
