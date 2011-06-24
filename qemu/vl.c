@@ -1441,7 +1441,7 @@ static void main_loop(void)
 #endif
 #ifndef CONFIG_IOTHREAD
 #ifdef MARSS_QEMU
-            if(in_simulation) {
+            if(in_simulation && !qemu_alarm_pending()) {
                 /* cur_cpu = first_cpu; */
                 sim_cpu_exec();
             } else {
@@ -2099,7 +2099,9 @@ int main(int argc, char **argv, char **envp)
                           HD_OPTS);
                 break;
             case QEMU_OPTION_drive:
-                drive_def(optarg);
+                if (drive_def(optarg) == NULL) {
+                    exit(1);
+                }
 	        break;
             case QEMU_OPTION_set:
                 if (qemu_set_option(optarg) != 0)
