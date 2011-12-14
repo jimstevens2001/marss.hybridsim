@@ -31,12 +31,14 @@
 #include <controller.h>
 #include <interconnect.h>
 #include <superstl.h>
+#include <memoryStats.h>
 
 #ifdef DRAMSIM
-//#include <DRAMSim.h>
-//using DRAMSim::MemorySystem;
 #include <HybridSim.h>
 using HybridSim::HybridSystem;
+//#include <DRAMSim.h>
+//using DRAMSim::MemorySystem;
+static const unsigned dramsim_transaction_size = 64;
 #endif
 
 
@@ -45,12 +47,13 @@ namespace Memory {
 struct MemoryQueueEntry : public FixStateListObject
 {
 	MemoryRequest *request;
+	Controller *source;
 	int depends;
 	bool annuled;
 	bool inUse;
 
 	void init() {
-		request = null;
+		request = NULL;
 		depends = -1;
 		annuled = false;
 		inUse = false;
@@ -59,6 +62,8 @@ struct MemoryQueueEntry : public FixStateListObject
 	ostream& print(ostream &os) const {
 		if(request)
 			os << "Request{", *request, "} ";
+        if (source)
+            os << "source[", source->get_name(), "] ";
 		os << "depends[", depends, "] ";
 		os << "annuled[", annuled, "] ";
 		os << "inUse[", inUse, "] ";
@@ -79,24 +84,29 @@ class MemoryController : public Controller
 
 		FixStateList<MemoryQueueEntry, MEM_REQ_NUM> pendingRequests_;
 
+        int latency_;
 		int bankBits_;
 		int get_bank_id(W64 addr);
 
+        RAMStats new_stats;
+
 	public:
+		MemoryController(W8 coreid, const char *name,
+				 MemoryHierarchy *memoryHierarchy);
 #ifdef DRAMSIM
+#define ALIGN_ADDRESS(addr, bytes) (addr & ~(((unsigned long)bytes) - 1L))
 		void read_return_cb(uint, uint64_t, uint64_t);
 		void write_return_cb(uint, uint64_t, uint64_t);
 		//MemorySystem *mem;
 		HybridSystem *mem;
 #endif
-		MemoryController(W8 coreid, char *name,
-				 MemoryHierarchy *memoryHierarchy);
 		bool handle_request_cb(void *arg);
 		bool handle_interconnect_cb(void *arg);
 		int access_fast_path(Interconnect *interconnect,
 				MemoryRequest *request);
 		void print(ostream& os) const;
 
+        void register_interconnect(Interconnect *interconnect, int type);
 		void register_cache_interconnect(Interconnect *interconnect);
 
 		bool access_completed_cb(void *arg);
