@@ -53,49 +53,52 @@ namespace Memory{
   const int L1D_WRITE_PORT = 3;
 
   // L1I: 32KB
-  const int L1I_LINE_SIZE = 64;
-  const int L1I_SET_COUNT = 128;
-  const int L1I_WAY_COUNT = 4;
-  const int L1I_LATENCY   = 3;
-  const int L1I_READ_PORT = 2;
-  const int L1I_WRITE_PORT = 1;
-
-  // L2: 256KB
-  const int L2_LINE_SIZE = 64;
-  const int L2_SET_COUNT = 512;
-  const int L2_WAY_COUNT = 8;
-  const int L2_LATENCY   = 5;
-  const int L2_REQ_NUM = 16;
-  const int L2_READ_PORT = 2;
-  const int L2_WRITE_PORT = 2;
-
-  // L2: 2MB
-  /*
-  const int L2_LINE_SIZE = 64;
-  const int L2_SET_COUNT = 4096;
-  const int L2_WAY_COUNT = 8;
-  const int L2_LATENCY   = 6;
-  const int L2_REQ_NUM = 16;
-  const int L2_READ_PORT = 2;
-  const int L2_WRITE_PORT = 2;
-  */
-
-  // L3: 8MB
-  const int L3_LINE_SIZE = 64;
-  const int L3_SET_COUNT = 8192;
-  const int L3_WAY_COUNT = 16;
-  const int L3_LATENCY   = 12;
-  const int L3_READ_PORT = 2;
-  const int L3_WRITE_PORT = 1;
-
-  // Main Memory
-  const int MEM_REQ_NUM = 64;
-  const int MEM_BANKS = 8;
-  const int MEM_LATENCY = 100;
-
-  // Bus Dealys
-  const int BUS_ARBITRATE_DELAY = 1;
-  const int BUS_BROADCASTS_DELAY = 6;
+//  const int L1I_LINE_SIZE = 64;
+//  const int L1I_SET_COUNT = 128;
+//  const int L1I_WAY_COUNT = 4;
+//  const int L1I_LATENCY   = 3;
+//  const int L1I_READ_PORT = 2;
+//  const int L1I_WRITE_PORT = 1;
+//
+//  // L2: 256KB
+//  const int L2_LINE_SIZE = 64;
+//  const int L2_SET_COUNT = 512;
+//  const int L2_WAY_COUNT = 8;
+//  const int L2_LATENCY   = 5;
+//  const int L2_REQ_NUM = 16;
+//  const int L2_READ_PORT = 2;
+//  const int L2_WRITE_PORT = 2;
+//
+//  // L2: 2MB
+//  /*
+//  const int L2_LINE_SIZE = 64;
+//  const int L2_SET_COUNT = 4096;
+//  const int L2_WAY_COUNT = 8;
+//  const int L2_LATENCY   = 6;
+//  const int L2_REQ_NUM = 16;
+//  const int L2_READ_PORT = 2;
+//  const int L2_WRITE_PORT = 2;
+//  */
+//
+//  // L3: 8MB
+//  const int L3_LINE_SIZE = 64;
+//  const int L3_SET_COUNT = 8192;
+//  const int L3_WAY_COUNT = 16;
+//  const int L3_LATENCY   = 12;
+//  const int L3_READ_PORT = 2;
+//  const int L3_WRITE_PORT = 1;
+//
+//  // Main Memory
+//  const int MEM_REQ_NUM = 64;
+//  const int MEM_BANKS = 8;
+//  const int MEM_LATENCY = 100;
+//
+//  // Bus Dealys
+//  const int BUS_ARBITRATE_DELAY = 1;
+//  const int BUS_BROADCASTS_DELAY = 6;
+	// Main Memory
+	const int MEM_REQ_NUM = 64;
+	const int MEM_BANKS = 8;
 
   // Average wait dealy for retrying (general)
   const int AVG_WAIT_DELAY = 5;
