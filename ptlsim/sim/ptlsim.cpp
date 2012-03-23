@@ -237,6 +237,14 @@ void PTLsimConfig::reset() {
 
 }
 
+#ifdef DRAMSIM
+void PTLsimMachine::simulation_done()
+{
+	// This is just a placeholder. The real action happens in the BaseMachine subclass.
+	//cerr << "In PTLsimMachine::simulation_done()\n";
+}
+#endif
+
 template <>
 void ConfigurationParser<PTLsimConfig>::setup() {
   // Full system only
@@ -737,13 +745,6 @@ PTLsimMachine* PTLsimMachine::getmachine(const char* name) {
   return *p;
 }
 
-#ifdef DRAMSIM
-void PTLsimMachine::simulation_done()
-{
-    //TODO: figure out how to get a memory hierarchy pointer with the new
-    // config mechanism and send simulation done to the dramsim memory controller
-}
-#endif
 
 /* Currently executing machine model: */
 PTLsimMachine* curr_ptl_machine = NULL;
