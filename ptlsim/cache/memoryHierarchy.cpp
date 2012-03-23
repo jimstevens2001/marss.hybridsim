@@ -129,6 +129,7 @@ void MemoryHierarchy::simulation_done()
 	//do a final dump of statistics in DRAMSim which completes the vis file
 	//((MemoryController*)memoryController_)->mem->printStats();	
 	//((MemoryController*)memoryController_)->mem->reportPower();        
+	//cerr << "In memoryHierarchy::simulation_done()\n";
 	((MemoryController*)memoryController_)->mem->printLogfile();        
 }
 #endif
