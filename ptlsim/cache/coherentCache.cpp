@@ -240,11 +240,6 @@ bool CacheController::handle_lower_interconnect(Message &message)
         }
     }
 
-    /* Check if we have any free entry pending or not */
-    if (is_full(true)) {
-        return false;
-    }
-
     if(isLowestPrivate_) {
 
         /* Ignore response that is not for this controller */
@@ -538,7 +533,6 @@ bool CacheController::cache_hit_cb(void *arg)
         return true;
 
     queueEntry->eventFlags[CACHE_HIT_EVENT]--;
-    bool kernel_req = queueEntry->request->is_kernel();
 
     if(queueEntry->isSnoop) {
         if (pendingRequests_.count() >=  (
@@ -551,14 +545,6 @@ bool CacheController::cache_hit_cb(void *arg)
         }
     } else {
         coherence_logic_->handle_local_hit(queueEntry);
-        OP_TYPE type = queueEntry->request->get_type();
-        if(type == MEMORY_OP_READ) {
-            N_STAT_UPDATE(new_stats->cpurequest.count.hit.read.hit, ++,
-                    kernel_req);
-        } else if(type == MEMORY_OP_WRITE) {
-            N_STAT_UPDATE(new_stats->cpurequest.count.hit.write.hit, ++,
-                    kernel_req);
-        }
     }
 
     return true;
@@ -593,14 +579,6 @@ bool CacheController::cache_miss_cb(void *arg)
         queueEntry->responseData = false;
         coherence_logic_->handle_interconn_miss(queueEntry);
     } else {
-        OP_TYPE type = queueEntry->request->get_type();
-        bool kernel_req = queueEntry->request->is_kernel();
-        if(type == MEMORY_OP_READ) {
-            N_STAT_UPDATE(new_stats->cpurequest.count.miss.read, ++, kernel_req);
-        } else if(type == MEMORY_OP_WRITE) {
-            N_STAT_UPDATE(new_stats->cpurequest.count.miss.write, ++, kernel_req);
-        }
-
         coherence_logic_->handle_local_miss(queueEntry);
     }
 
@@ -659,6 +637,7 @@ bool CacheController::cache_access_cb(void *arg)
 
     queueEntry->eventFlags[CACHE_ACCESS_EVENT]--;
     bool kernel_req = queueEntry->request->is_kernel();
+	OP_TYPE type = queueEntry->request->get_type();
 
     if(cacheLines_->get_port(queueEntry->request)) {
         bool hit;
@@ -677,12 +656,32 @@ bool CacheController::cache_access_cb(void *arg)
         if(hit) {
             signal = &cacheHit_;
             delay = cacheAccessLatency_;
+
+			if (!queueEntry->isSnoop) {
+				if(type == MEMORY_OP_READ) {
+					N_STAT_UPDATE(new_stats->cpurequest.count.hit.read.hit, ++,
+							kernel_req);
+				} else if(type == MEMORY_OP_WRITE) {
+					N_STAT_UPDATE(new_stats->cpurequest.count.hit.write.hit, ++,
+							kernel_req);
+				}
+			}
         } else { // Cache Miss
             signal = &cacheMiss_;
             delay = cacheAccessLatency_;
 
             N_STAT_UPDATE(new_stats->miss_state.cpu, [4]++,
                     kernel_req);
+
+			if (!queueEntry->isSnoop) {
+				if(type == MEMORY_OP_READ) {
+					N_STAT_UPDATE(new_stats->cpurequest.count.miss.read, ++,
+							kernel_req);
+				} else if(type == MEMORY_OP_WRITE) {
+					N_STAT_UPDATE(new_stats->cpurequest.count.miss.write, ++,
+							kernel_req);
+				}
+			}
         }
         memoryHierarchy_->add_event(signal, delay,
                 (void*)queueEntry);

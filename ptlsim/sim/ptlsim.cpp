@@ -502,6 +502,7 @@ static void flush_stats()
     if(time_stats_file) {
         time_stats_file->close();
     }
+
 //FIXME: this assumes that flush_stats is only called at the end, which is true now but might not be true in the long run
 #ifdef DRAMSIM
     machine->simulation_done();
