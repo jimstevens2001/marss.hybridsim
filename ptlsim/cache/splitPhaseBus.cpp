@@ -339,6 +339,13 @@ bool BusInterconnect::broadcast_completed_cb(void *arg)
         return true;
     }
 
+	if(!can_broadcast(queueEntry->controllerQueue)) {
+		set_bus_busy(true);
+		memoryHierarchy_->add_event(&broadcastCompleted_,
+				2, NULL);
+		return true;
+	}
+
     memdebug("Broadcasing entry: ", *queueEntry, endl);
 
     /* now create an entry into pendingRequests_ */
@@ -524,6 +531,25 @@ bool BusInterconnect::data_broadcast_completed_cb(void *arg)
     set_data_bus();
 
     return true;
+}
+
+/**
+ * @brief Dump Split Bus Interconnect Configuration in YAML Format
+ *
+ * @param out YAML Object
+ */
+void BusInterconnect::dump_configuration(YAML::Emitter &out) const
+{
+	out << YAML::Key << get_name() << YAML::Value << YAML::BeginMap;
+
+	YAML_KEY_VAL(out, "type", "interconnect");
+	YAML_KEY_VAL(out, "latency", latency_);
+	YAML_KEY_VAL(out, "arbitrate_latency", arbitrate_latency_);
+	if (controllers.size() > 0)
+		YAML_KEY_VAL(out, "per_cont_queue_size",
+				controllers[0]->queue.size());
+
+	out << YAML::EndMap;
 }
 
 struct SplitPhaseBusBuilder : public InterconnectBuilder

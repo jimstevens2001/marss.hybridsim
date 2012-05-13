@@ -28,6 +28,7 @@ void DirectoryEntry::reset()
     tag   = -1;
     owner = -1;
     dirty = 0;
+	locked = 0;
 }
 
 void DirectoryEntry::init(W64 tag_)
@@ -35,6 +36,7 @@ void DirectoryEntry::init(W64 tag_)
     tag   = tag_;
     dirty = 0;
     owner = -1;
+	locked = 0;
     present.reset();
 }
 
@@ -368,7 +370,7 @@ bool DirectoryController::write_miss_cb(void *arg)
     DirectoryEntry *dir_entry = get_directory_entry(queueEntry->request);
     DirectoryController *sig_dir = this;
 
-    if (!dir_entry) {
+    if (!dir_entry || dir_entry->locked) {
         // Retry after 1 cycle
         memoryHierarchy_->add_event(&write_miss, 1, queueEntry);
         return true;
@@ -547,7 +549,8 @@ bool DirectoryController::send_update_cb(void *arg)
         return true;
     }
 
-    newEntry->request = memoryHierarchy_->get_free_request();
+    newEntry->request = memoryHierarchy_->get_free_request(
+            queueEntry->request->get_coreid());
     newEntry->request->init(queueEntry->request);
     newEntry->request->incRefCounter();
     newEntry->request->set_op_type(MEMORY_OP_UPDATE);
@@ -592,6 +595,8 @@ bool DirectoryController::send_evict_cb(void *arg)
 		return true;
 	}
 
+	queueEntry->entry->locked = 1;
+
     /* Now for each cached entry, send evict message to that
      * controller */
     foreach (i, NUM_SIM_CORES) {
@@ -602,7 +607,8 @@ bool DirectoryController::send_evict_cb(void *arg)
 
         assert(newEntry);
 
-        newEntry->request = memoryHierarchy_->get_free_request();
+        newEntry->request = memoryHierarchy_->get_free_request(
+                queueEntry->request->get_coreid());
         newEntry->request->init(queueEntry->request);
         newEntry->request->incRefCounter();
         newEntry->request->set_op_type(MEMORY_OP_EVICT);
@@ -637,6 +643,8 @@ bool DirectoryController::send_response_cb(void *arg)
     queueEntry->entry->present.reset(queueEntry->cont->idx);
     queueEntry->shared = queueEntry->entry->present.nonzero();
     queueEntry->entry->present.set(queueEntry->cont->idx);
+
+	queueEntry->entry->locked = 0;
 
     if (queueEntry->request->get_type() == MEMORY_OP_WRITE) {
         queueEntry->entry->owner = queueEntry->cont->idx;
@@ -814,7 +822,8 @@ DirectoryEntry* DirectoryController::get_directory_entry(
 
             assert(newEntry);
 
-            newEntry->request = memoryHierarchy_->get_free_request();
+            newEntry->request = memoryHierarchy_->get_free_request(
+                    req->get_coreid());
             newEntry->request->init(req);
             newEntry->request->incRefCounter();
             newEntry->request->set_physical_address(old_tag);
@@ -958,6 +967,24 @@ void DirectoryController::annul_request(MemoryRequest *request)
             pendingRequests_->free(entry);
         }
     }
+}
+
+/**
+ * @brief Dump Directory Configuration in YAML Format
+ *
+ * @param out YAML Object
+ */
+void DirectoryController::dump_configuration(YAML::Emitter &out) const
+{
+	out << YAML::Key << get_name() << YAML::Value << YAML::BeginMap;
+
+	YAML_KEY_VAL(out, "type", "directory");
+	YAML_KEY_VAL(out, "size", DIR_SET * DIR_WAY);
+	YAML_KEY_VAL(out, "line_size", DIR_LINE_SIZE);
+	YAML_KEY_VAL(out, "sets", DIR_SET);
+	YAML_KEY_VAL(out, "ways", DIR_WAY);
+
+	out << YAML::EndMap;
 }
 
 /**

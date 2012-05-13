@@ -39,9 +39,8 @@ namespace Memory{
   const int REQUEST_POOL_SIZE = 2048;
   const double REQUEST_POOL_LOW_RATIO = 0.1;
 
-  // CPU Controller
-  const int CPU_CONT_PENDING_REQ_SIZE = 128;
-  const int CPU_CONT_ICACHE_BUF_SIZE = 32;
+	const int REQUEST_POOL_SIZE = 1024;
+	const double REQUEST_POOL_LOW_RATIO = 0.1;
 
   // L1D: 32KB
   const int L1D_LINE_SIZE = 64;
