@@ -267,7 +267,8 @@ static void ptlcall_mmio_write(CPUX86State* cpu, W64 offset, W64 value,
                         << flush;
 
 #ifdef DRAMSIM
-                hybridsim_ptr->mmio(operation, address);
+                if (in_simulation && hybridsim_ptr)
+				    hybridsim_ptr->mmio(operation, address);
 #endif
                 break;
             }
