@@ -61,6 +61,7 @@ struct PTLsimMachine : public Statable {
   virtual void dump_state(ostream& os);
   virtual void flush_tlb(Context& ctx);
   virtual void flush_tlb_virt(Context& ctx, Waddr virtaddr);
+  virtual void dump_configuration(ostream& os) const;
   virtual void reset(){};
 #ifdef DRAMSIM
   virtual void simulation_done();
@@ -209,6 +210,7 @@ struct PTLsimConfig {
   W64 log_file_size;
   stringbuf screenshot_file;
   bool log_user_only;
+  stringbuf dump_config_filename;
 
   bool dump_state_now;
   bool abort_at_end;
@@ -315,6 +317,7 @@ void init_qemu_io_events();
 void clock_qemu_io_events();
 
 W64 ns_to_simcycles(W64 ns);
+float simcycles_to_ns(W64 cycles);
 
 void set_next_simpoint(Context& ctx);
 stringbuf* get_simpoint_chk_name();

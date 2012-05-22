@@ -40,6 +40,10 @@
 
 using namespace Memory;
 
+#ifdef DRAMSIM
+HybridSystem *hybridsim_ptr;
+#endif
+
 MemoryController::MemoryController(W8 coreid, const char *name,
 		MemoryHierarchy *memoryHierarchy) :
 	Controller(coreid, name, memoryHierarchy)
@@ -52,7 +56,7 @@ MemoryController::MemoryController(W8 coreid, const char *name,
     }
 #ifdef DRAMSIM
 
-	extern uint64_t qemu_ram_size;
+	//extern uint64_t qemu_ram_size;
 	//mem = DRAMSim::getMemorySystemInstance(0, "ini/DDR3_micron_8M_8B_x16_sg15.ini", "system.ini", "../DRAMSim2", "MARSS", qemu_ram_size>>20 ); 
 	mem = HybridSim::getMemorySystemInstance(1, "");
 
@@ -61,6 +65,8 @@ MemoryController::MemoryController(W8 coreid, const char *name,
 	HybridSim::TransactionCompleteCB *write_cb = new hybridsim_callback_t(this, &MemoryController::write_return_cb);
 	mem->RegisterCallbacks(read_cb, write_cb);
 
+	// Set the global ptr to HybridSim so it is accessible easily from ptl-qemu.cpp.
+	hybridsim_ptr = mem;
 #endif
 
     /* Convert latency from ns to cycles */
@@ -396,6 +402,25 @@ int MemoryController::get_no_pending_request(W8 coreid)
 			count++;
 	}
 	return count;
+}
+
+/**
+ * @brief Dump Memory Controller in YAML Format
+ *
+ * @param out YAML Object
+ */
+void MemoryController::dump_configuration(YAML::Emitter &out) const
+{
+	out << YAML::Key << get_name() << YAML::Value << YAML::BeginMap;
+
+	YAML_KEY_VAL(out, "type", "dram_cont");
+	YAML_KEY_VAL(out, "RAM_size", ram_size); /* ram_size is from QEMU */
+	YAML_KEY_VAL(out, "number_of_banks", MEM_BANKS);
+	YAML_KEY_VAL(out, "latency", latency_);
+	YAML_KEY_VAL(out, "latency_ns", simcycles_to_ns(latency_));
+	YAML_KEY_VAL(out, "pending_queue_size", pendingRequests_.size());
+
+	out << YAML::EndMap;
 }
 
 /* Memory Controller Builder */

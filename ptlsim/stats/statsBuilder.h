@@ -147,6 +147,16 @@ class Statable {
             name = str;
         }
 
+		/**
+		 * @brief Get the name of Stats Object
+		 *
+		 * @return name of object
+		 */
+		char* get_name() const
+		{
+			return name.buf;
+		}
+
         /**
          * @brief get default Stats*
          *
@@ -235,6 +245,7 @@ class Statable {
 
         stringbuf *get_full_stat_string() const;
 
+		StatObjBase* get_stat_obj(dynarray<stringbuf*> &names, int idx);
 };
 
 /**
@@ -383,6 +394,9 @@ class StatsBuilder {
             rootNode = new Statable("", true);
             stat_offset = 0;
         }
+
+		StatObjBase* get_stat_obj(stringbuf &name);
+		StatObjBase* get_stat_obj(const char *name);
 };
 
 /**
@@ -502,6 +516,16 @@ class StatObjBase {
                 return s;
             }
         }
+
+		/**
+		 * @brief Get name of the Stats Object
+		 *
+		 * @return char* containing name
+		 */
+		char* get_name() const
+		{
+			return name.buf;
+		}
 
         virtual ostream &dump_header(ostream &os) {
             if (is_dump_periodic()) {
