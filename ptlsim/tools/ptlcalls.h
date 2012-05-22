@@ -425,7 +425,18 @@ static inline W64 ptlcall_core_dump(const char* dump, const W64 size,
 static inline void ptlcall_log(const char* log)
 {
 	int length = strlen(log);
-	ptlcall_write(PTLCALL_LOG, (W64)log, length, 0, 0, 0, 0);
+	ptlcall(PTLCALL_LOG, (W64)log, length, 0, 0, 0, 0);
+}
+
+#endif // PTLCALLS_USERSPACE
+
+#define PTLCALL_HYBRIDSIM 6
+
+#ifdef PTLCALLS_USERSPACE
+
+static inline void ptlcall_hybridsim(const W64 operation, const W64 address)
+{
+	ptlcall(PTLCALL_HYBRIDSIM, operation, address, 0, 0, 0, 0);
 }
 
 #endif // PTLCALLS_USERSPACE

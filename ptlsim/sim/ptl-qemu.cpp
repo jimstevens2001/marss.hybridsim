@@ -58,6 +58,13 @@ extern "C" {
 
 using namespace Memory;
 
+#ifdef DRAMSIM
+#include <HybridSim.h>
+using HybridSim::HybridSystem;
+extern HybridSystem *hybridsim_ptr;
+#endif
+
+
 uint8_t in_simulation = 0;
 uint8_t start_simulation = 0;
 uint8_t simulation_configured = 0;
@@ -248,6 +255,20 @@ static void ptlcall_mmio_write(CPUX86State* cpu, W64 offset, W64 value,
                 vm_log.buf[size] = '\0';
 
                 ptl_logfile << "[VM] " << vm_log;
+                break;
+            }
+        case PTLCALL_HYBRIDSIM:
+            {
+                // Call HybridSim::mmio()
+                W64 operation = arg1;
+                W64 address = arg2;
+                ptl_logfile << "Received PTLCALL_HYBRIDSIM with operation " 
+                        << operation << " and address " << address << ".\n"
+                        << flush;
+
+#ifdef DRAMSIM
+                hybridsim_ptr->mmio(operation, address);
+#endif
                 break;
             }
         default :
