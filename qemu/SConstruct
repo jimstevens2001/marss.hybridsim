@@ -40,7 +40,9 @@ else:
 
 dramsim_path= ARGUMENTS.get('dramsim', '%s/DRAMSim2' % (os.environ['HOME'] ))
 if os.path.isdir(dramsim_path):
-	env.Append(LINKFLAGS=('-lhybridsim -L%s -Wl,-rpath=%s' %(dramsim_path, dramsim_path)));
+	env.Append(LINKFLAGS=('-Wl,-rpath=%s' %(dramsim_path)))
+	env.Append(LIBS=('hybridsim'))
+	env.Append(LIBPATH=(dramsim_path))
 
 google_perftools = ARGUMENTS.get('gperf', None)
 if google_perftools != None:
