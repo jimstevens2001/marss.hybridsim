@@ -97,12 +97,8 @@ class MemoryController : public Controller
 #define ALIGN_ADDRESS(addr, bytes) (addr & ~(((unsigned long)bytes) - 1L))
 		void read_return_cb(uint, uint64_t, uint64_t);
 		void write_return_cb(uint, uint64_t, uint64_t);
-<<<<<<< HEAD
 		//MemorySystem *mem;
 		HybridSystem *mem;
-=======
-		MultiChannelMemorySystem *mem;
->>>>>>> 233a897ede51c037630a1b0acc00ed94e928611b
 #endif
 		virtual bool handle_interconnect_cb(void *arg);
 		void print(ostream& os) const;
@@ -122,11 +118,12 @@ class MemoryController : public Controller
 #ifdef DRAMSIM
             if (request)
             {
-    			dramsimIsFull = !mem->willAcceptTransaction(request->get_physical_address());
+    			//dramsimIsFull = !mem->willAcceptTransaction(request->get_physical_address());
+    			dramsimIsFull = !mem->WillAcceptTransaction();
             }
             else
             {
-    			dramsimIsFull = !mem->willAcceptTransaction();
+    			dramsimIsFull = !mem->WillAcceptTransaction();
             }
 #endif
 			return pendingRequests_.isFull() || dramsimIsFull;

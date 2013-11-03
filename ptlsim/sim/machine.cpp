@@ -315,17 +315,17 @@ void BaseMachine::dump_state(ostream& os)
     memoryHierarchyPtr->dump_info(os);
 }
 
-#ifdef DRAMSIM
-void BaseMachine::simulation_done()
-{
-    //TODO: figure out how to get a memory hierarchy pointer with the new
-    // config mechanism and send simulation done to the dramsim memory controller
-
-	//cerr << "In BaseMachine::simulation_done()\n";
-	memoryHierarchyPtr->simulation_done();
-	
-}
-#endif
+//#ifdef DRAMSIM
+//void BaseMachine::simulation_done()
+//{
+ //   //TODO: figure out how to get a memory hierarchy pointer with the new
+//    // config mechanism and send simulation done to the dramsim memory controller
+//
+//	//cerr << "In BaseMachine::simulation_done()\n";
+//	memoryHierarchyPtr->simulation_done();
+//	
+//}
+//#endif
 
 void BaseMachine::flush_all_pipelines()
 {

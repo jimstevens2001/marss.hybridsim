@@ -66,9 +66,9 @@ struct BaseMachine: public PTLsimMachine {
     virtual void flush_tlb(Context& ctx);
     virtual void flush_tlb_virt(Context& ctx, Waddr virtaddr);
     void flush_all_pipelines();
-    #ifdef DRAMSIM
-      virtual void simulation_done();
-    #endif
+//    #ifdef DRAMSIM
+ //     virtual void simulation_done();
+  //  #endif
     virtual void reset();
 	virtual void dump_configuration(ostream& os) const;
 	virtual void shutdown();
