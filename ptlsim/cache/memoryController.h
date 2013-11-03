@@ -97,30 +97,37 @@ class MemoryController : public Controller
 #define ALIGN_ADDRESS(addr, bytes) (addr & ~(((unsigned long)bytes) - 1L))
 		void read_return_cb(uint, uint64_t, uint64_t);
 		void write_return_cb(uint, uint64_t, uint64_t);
+<<<<<<< HEAD
 		//MemorySystem *mem;
 		HybridSystem *mem;
+=======
+		MultiChannelMemorySystem *mem;
+>>>>>>> 233a897ede51c037630a1b0acc00ed94e928611b
 #endif
-		bool handle_request_cb(void *arg);
-		bool handle_interconnect_cb(void *arg);
-		int access_fast_path(Interconnect *interconnect,
-				MemoryRequest *request);
+		virtual bool handle_interconnect_cb(void *arg);
 		void print(ostream& os) const;
 
-        void register_interconnect(Interconnect *interconnect, int type);
-		void register_cache_interconnect(Interconnect *interconnect);
+        virtual void register_interconnect(Interconnect *interconnect, int type);
 
-		bool access_completed_cb(void *arg);
-		bool wait_interconnect_cb(void *arg);
+		virtual bool access_completed_cb(void *arg);
+		virtual bool wait_interconnect_cb(void *arg);
 
 		void annul_request(MemoryRequest *request);
-		void dump_configuration(YAML::Emitter &out) const;
+		virtual void dump_configuration(YAML::Emitter &out) const;
 
-		int get_no_pending_request(W8 coreid);
+		virtual int get_no_pending_request(W8 coreid);
 
 		bool is_full(bool fromInterconnect = false, MemoryRequest *request = NULL) const {
 			bool dramsimIsFull = false; 
 #ifdef DRAMSIM
-			dramsimIsFull = !mem->WillAcceptTransaction();
+            if (request)
+            {
+    			dramsimIsFull = !mem->willAcceptTransaction(request->get_physical_address());
+            }
+            else
+            {
+    			dramsimIsFull = !mem->willAcceptTransaction();
+            }
 #endif
 			return pendingRequests_.isFull() || dramsimIsFull;
 		}

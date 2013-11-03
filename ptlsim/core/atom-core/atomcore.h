@@ -30,21 +30,21 @@
 #define ATOMLOG2(...) if(logable(ATOM_BASE_LL+1)) { ptl_logfile << __VA_ARGS__ ; }
 #define ATOMLOG3(...) if(logable(ATOM_BASE_LL+4)) { ptl_logfile << __VA_ARGS__ ; }
 
-#define ATOMCORELOG(...) ATOMLOG1("Core:", coreid, " ", __VA_ARGS__, endl)
-#define ATOMTHLOG1(...) ATOMLOG1("Core:", core.coreid, \
+#define ATOMCORELOG(...) ATOMLOG1("Core:", get_coreid(), " ", __VA_ARGS__, endl)
+#define ATOMTHLOG1(...) ATOMLOG1("Core:", core.get_coreid(), \
         " Th:", threadid, " ", __VA_ARGS__, endl)
-#define ATOMTHLOG2(...) ATOMLOG2("Core:", core.coreid, \
+#define ATOMTHLOG2(...) ATOMLOG2("Core:", core.get_coreid(), \
         " Th:", threadid, " ", __VA_ARGS__, endl)
-#define ATOMTHLOG3(...) ATOMLOG3("Core:", core.coreid, \
+#define ATOMTHLOG3(...) ATOMLOG3("Core:", core.get_coreid(), \
         " Th:", threadid, " ", __VA_ARGS__, endl)
 
-#define ATOMOPLOG1(...) ATOMLOG1("Core:", thread->core.coreid, \
+#define ATOMOPLOG1(...) ATOMLOG1("Core:", thread->core.get_coreid(), \
         " Th:", thread->threadid, " AtomOp:0x", hexstring(rip,48), \
         " [", uuid, "] ", __VA_ARGS__, endl)
-#define ATOMOPLOG2(...) ATOMLOG2("Core:", thread->core.coreid, \
+#define ATOMOPLOG2(...) ATOMLOG2("Core:", thread->core.get_coreid(), \
         " Th:", thread->threadid, " AtomOp:0x", hexstring(rip,48), \
         " [", uuid, "] ", __VA_ARGS__, endl)
-#define ATOMOPLOG3(...) ATOMLOG3("Core:", thread->core.coreid, \
+#define ATOMOPLOG3(...) ATOMLOG3("Core:", thread->core.get_coreid(), \
         " Th:", thread->threadid, " AtomOp:0x", hexstring(rip,48), \
         " [", uuid, "] ", __VA_ARGS__, endl)
 
@@ -459,7 +459,7 @@ namespace ATOM_CORE_MODEL {
         }
 
         int flush_virt(Waddr virtaddr, W64 threadid) {
-            return invalidate(tagof(virtaddr, threadid));
+            return this->invalidate(tagof(virtaddr, threadid));
         }
     };
 
@@ -984,15 +984,37 @@ namespace ATOM_CORE_MODEL {
         {
             StatObj<W64> accesses;
             StatObj<W64> misses;
+			
+			StatEquation<W64, double, StatObjFormulaDiv> miss_ratio;
 
             cache_access(const char* name, Statable *parent)
                 : Statable(name, parent)
                   , accesses("accesses", this)
                   , misses("misses", this)
+				  , miss_ratio("miss_ratio", this)
             {}
         };
 
         cache_access st_dcache, st_icache;
+
+		struct tlb_access : public Statable
+		{
+			StatObj<W64> accesses;
+			StatObj<W64> hits;
+			StatObj<W64> misses;
+
+			StatEquation<W64, double, StatObjFormulaDiv> hit_ratio;
+
+			tlb_access(const char* name, Statable *parent)
+				: Statable(name, parent)
+				, accesses("accesses", this)
+				, hits("hits", this)
+				, misses("misses", this)
+				, hit_ratio("hit_ratio", this)
+				{}
+		};
+
+		tlb_access st_itlb, st_dtlb;
 
         StatObj<W64> st_cycles;
 
@@ -1018,14 +1040,14 @@ namespace ATOM_CORE_MODEL {
         ~AtomCore();
         
         void reset();
-        bool runcycle();
+        bool runcycle(void*);
         void check_ctx_changes();
         void flush_tlb(Context& ctx);
         void flush_tlb_virt(Context& ctx, Waddr virtaddr);
         void dump_state(ostream& os);
         void update_stats();
         void flush_pipeline();
-        W8   get_coreid();
+        //W8   get_coreid();
 		void dump_configuration(YAML::Emitter &out) const;
 
         // Pipeline related functions
@@ -1051,12 +1073,14 @@ namespace ATOM_CORE_MODEL {
 
         ostream& print(ostream& os) const;
 
-        W8   coreid;
+        //W8   coreid;
         W8   threadcount;
         bool in_thread_switch;
 
         AtomThread** threads;
         AtomThread*  running_thread;
+
+		Signal run_cycle;
 
         /**
          * @brief Fetch/Decode Queue

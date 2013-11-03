@@ -63,22 +63,6 @@ MemoryHierarchy::MemoryHierarchy(BaseMachine& machine) :
 
 MemoryHierarchy::~MemoryHierarchy()
 {
-    // Delete all the cpu-controllers and cache-controllers
-	foreach(i, cpuControllers_.count()) {
-        delete cpuControllers_[i];
-	}
-    cpuControllers_.clear();
-
-	foreach(i, allControllers_.count()) {
-        delete allControllers_[i];
-	}
-    allControllers_.clear();
-
-	foreach(i, allInterconnects_.count()) {
-        delete allInterconnects_[i];
-	}
-    allInterconnects_.clear();
-
     foreach(i, NUM_SIM_CORES) {
         RequestPool* pool = requestPool_.pop();
         delete pool;
@@ -113,13 +97,7 @@ void MemoryHierarchy::clock()
 		cpuController->clock();
 	}
 #ifdef DRAMSIM
-	// TODO: unhardcode this -- my CPU clock defaults to 2ghz, a DDR3, sg15 part 
-	// 		has a 667MHZ clock, so only call this function 1/3 of the time
-
-	if (sim_cycle % 3 == 0)
-	{
-		((MemoryController*)memoryController_)->mem->update();	
-	}
+    ((MemoryController*)memoryController_)->mem->update();	
 #endif
 
 	Event *event;

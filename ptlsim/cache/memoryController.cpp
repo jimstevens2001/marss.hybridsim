@@ -38,6 +38,7 @@
 
 #include <machine.h>
 
+extern uint64_t qemu_ram_size;
 using namespace Memory;
 
 #ifdef DRAMSIM
@@ -85,9 +86,19 @@ MemoryController::MemoryController(W8 coreid, const char *name,
 	}
 }
 
+/*
+ * @brief: get bank id from input address using
+ *         cache line interleaving address mapping
+ *         using lower bits for bank id
+ *
+ * @param: addr - input address of the memory request
+ *
+ * @return: bank id of input address
+ *
+ */
 int MemoryController::get_bank_id(W64 addr)
 {
-	return lowbits(addr >> 16, bankBits_);
+    return lowbits(addr >> 6, bankBits_);
 }
 
 void MemoryController::register_interconnect(Interconnect *interconnect,
@@ -100,19 +111,6 @@ void MemoryController::register_interconnect(Interconnect *interconnect,
         default:
             assert(0);
     }
-}
-
-void MemoryController::register_cache_interconnect(
-		Interconnect *interconnect)
-{
-	cacheInterconnect_ = interconnect;
-}
-
-bool MemoryController::handle_request_cb(void *arg)
-{
-	memdebug("Received message in controller: ", get_name(), endl);
-	assert(0);
-	return false;
 }
 
 bool MemoryController::handle_interconnect_cb(void *arg)
@@ -193,7 +191,7 @@ bool MemoryController::handle_interconnect_cb(void *arg)
 		banksUsed_[bank_no] = 1;
 		queueEntry->inUse = true;
 #ifndef DRAMSIM
-		memoryHierarchy_->add_event(&accessCompleted_, latency_,
+		marss_add_event(&accessCompleted_, latency_,
 				queueEntry);
 #endif
 	}
@@ -204,21 +202,28 @@ bool MemoryController::handle_interconnect_cb(void *arg)
 	// FIXME: in the future there should be some mechanism to check that the size
 	// 	of a transaction and maybe make sure it matches the LLC line size
 	physicalAddress = ALIGN_ADDRESS(physicalAddress, dramsim_transaction_size); 
+    
+    /* This fixes issue #9: since we assume a write-allocate policy for MARSS,
+     * a MEMORY_OP_WRITE which corresponds to a write miss should be treated as
+     * a read operation in DRAMSim2. Once the line is brought into the cache it
+     * will be modified. Therefore, data writebacks will only happen on an
+     * MEMORY_OP_UPDATE operation when a dirty line is evicted from the cache. 
+     */
 
-	bool isWrite = memRequest->get_type() == MEMORY_OP_WRITE || memRequest->get_type() == MEMORY_OP_UPDATE;
-	bool accepted = mem->addTransaction(isWrite,physicalAddress);
-	queueEntry->inUse = true;
-	assert(accepted);
+    bool isWrite = memRequest->get_type() == MEMORY_OP_UPDATE;
+    bool accepted = mem->addTransaction(isWrite,physicalAddress);
+    queueEntry->inUse = true;
+    // the interconnect should have called mem->WillAcceptTransaction() via can_broadcast() before we got here, so this should always succeed
+    if (!accepted) {
+        queueEntry->request->decRefCounter();
+        //XXX: hack alert -- shouldn't be allocating this entry in the first place if the transaction won't be accepted
+        pendingRequests_.free(queueEntry); 
+        ptl_logfile << "###### DRAMSIM REJECTING "<< *(queueEntry->request)<<endl; 
+        assert(0);
+    }
 #endif
 
 	return true;
-}
-
-int MemoryController::access_fast_path(Interconnect *interconnect,
-		MemoryRequest *request)
-{
-	assert(0);
-	return -1;
 }
 
 void MemoryController::print(ostream& os) const
@@ -275,9 +280,9 @@ void MemoryController::read_return_cb(uint id, uint64_t addr, uint64_t cycle)
 bool MemoryController::access_completed_cb(void *arg)
 {
     MemoryQueueEntry *queueEntry = (MemoryQueueEntry*)arg;
-    bool kernel = queueEntry->request->is_kernel();
 
 #ifndef DRAMSIM
+    bool kernel = queueEntry->request->is_kernel();
     int bank_no = get_bank_id(queueEntry->request->
             get_physical_address());
     banksUsed_[bank_no] = 0;
@@ -308,7 +313,7 @@ bool MemoryController::access_completed_cb(void *arg)
                 get_physical_address());
         if(bank_no == bank_no_2 && entry->inUse == false) {
             entry->inUse = true;
-            memoryHierarchy_->add_event(&accessCompleted_,
+            marss_add_event(&accessCompleted_,
                     latency_, entry);
             banksUsed_[bank_no] = 1;
             break;
@@ -363,7 +368,7 @@ bool MemoryController::wait_interconnect_cb(void *arg)
 
 	if(!success) {
 		/* Failed to response to cache, retry after 1 cycle */
-		memoryHierarchy_->add_event(&waitInterconnect_, 1, queueEntry);
+		marss_add_event(&waitInterconnect_, 1, queueEntry);
 	} else {
 		queueEntry->request->decRefCounter();
 		ADD_HISTORY_REM(queueEntry->request);

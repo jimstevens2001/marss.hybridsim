@@ -48,6 +48,7 @@ struct BaseMachine: public PTLsimMachine {
     dynarray<Memory::Controller*> controllers;
     dynarray<Memory::Interconnect*> interconnects;
     dynarray<ConnectionDef*> connections;
+	dynarray<Signal*> per_cycle_signals;
 
     Hashtable<const char*, Memory::Controller*, 1> controller_hash;
     Hashtable<const char*, BoolOptions*, 1> bool_options;
@@ -70,7 +71,9 @@ struct BaseMachine: public PTLsimMachine {
     #endif
     virtual void reset();
 	virtual void dump_configuration(ostream& os) const;
+	virtual void shutdown();
     virtual ~BaseMachine();
+    void simulation_done(); 
 
     bitvec<NUM_SIM_CORES> context_used;
     W8 context_counter;
@@ -78,6 +81,7 @@ struct BaseMachine: public PTLsimMachine {
 
     Context& get_next_context();
     W8 get_next_coreid();
+	void config_changed();
 
     // Interconnect related support functions
     ConnectionDef* get_new_connection_def(const char* interconnect,
@@ -122,6 +126,7 @@ struct CoreBuilder {
     static Hashtable<const char*, CoreBuilder*, 1> *coreBuilders;
     static void add_new_core(BaseMachine& machine, const char* name,
             const char* core_name);
+	virtual void config_changed() {}
 };
 
 struct ControllerBuilder {
@@ -131,6 +136,7 @@ struct ControllerBuilder {
     static Hashtable<const char*, ControllerBuilder*, 1> *controllerBuilders;
     static void add_new_cont(BaseMachine& machine, W8 coreid,
             const char* name, const char* cont_name, W8 type);
+	virtual void config_changed() {}
 };
 
 struct InterconnectBuilder {
@@ -140,6 +146,12 @@ struct InterconnectBuilder {
     static Hashtable<const char*, InterconnectBuilder*, 1> *interconnectBuilders;
     static void create_new_int(BaseMachine& machine, W8 id,
             const char* name, const char* int_name, int count, ...);
+	virtual void config_changed() {}
 };
+
+extern "C" {
+void marss_add_event(Signal* signal, int delay, void* arg);
+void marss_register_per_cycle_event(Signal *signal);
+}
 
 #endif // MACHINE_H

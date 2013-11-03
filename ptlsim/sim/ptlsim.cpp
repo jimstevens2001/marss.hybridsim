@@ -44,8 +44,8 @@
 //
 // Global variables
 //
-PTLsimConfig config;
-ConfigurationParser<PTLsimConfig> configparser;
+extern ConfigurationParser<PTLsimConfig> config;
+
 PTLsimMachine ptl_machine;
 
 ofstream ptl_logfile;
@@ -151,7 +151,8 @@ struct SimStats : public Statable
 } simstats;
 
 
-void PTLsimConfig::reset() {
+template <>
+void ConfigurationParser<PTLsimConfig>::reset() {
   help=0;
   run = 0;
   stop = 0;
@@ -177,6 +178,7 @@ void PTLsimConfig::reset() {
   verify_cache = 0;
   stats_filename.reset();
   yaml_stats_filename="";
+  stats_format = "yaml";
   snapshot_cycles = infinity;
   snapshot_now.reset();
   time_stats_logfile = "";
@@ -241,6 +243,14 @@ void PTLsimConfig::reset() {
   simpoint_file = "";
   simpoint_interval = 10e6;
   simpoint_chk_name = "simpoint";
+#ifdef DRAMSIM
+  // DRAMSim2 options
+  dramsim_device_ini_file = "ini/DDR3_micron_8M_8B_x16_sg15.ini";
+  dramsim_system_ini_file = "system.ini";
+  dramsim_pwd = "../DRAMSim2";
+  dramsim_results_dir_name = "MARSS";
+#endif
+
 }
 
 #ifdef DRAMSIM
@@ -280,6 +290,7 @@ void ConfigurationParser<PTLsimConfig>::setup() {
   section("Statistics Database");
   add(stats_filename,               "stats",                "Statistics data store hierarchy root");
   add(yaml_stats_filename,          "yamlstats",                "Statistics data stores in YAML format");
+  add(stats_format,					"stats-format",          "Statistics output format, default is YAML");
   add(snapshot_cycles,              "snapshot-cycles",      "Take statistical snapshot and reset every <snapshot> cycles");
   add(snapshot_now,                 "snapshot-now",         "Take statistical snapshot immediately, using specified name");
   add(time_stats_logfile,           "time-stats-logfile",   "File to write time-series statistics (new)");
@@ -322,10 +333,7 @@ void ConfigurationParser<PTLsimConfig>::setup() {
  add(verify_cache,               "verify-cache",                   "run simulation with storing actual data in cache");
 
   section("Core Configuration");
-  stringbuf* m_names = new stringbuf();
-  *m_names << "Available Machine: ";
-  MachineBuilder::get_all_machine_names(*m_names);
-  add(machine_config, "machine", m_names->buf);
+  add(machine_config, "machine", "Name of machine configuration to simulate");
 
  ///
  /// following are for the new memory hierarchy implementation:
@@ -357,28 +365,36 @@ void ConfigurationParser<PTLsimConfig>::setup() {
   add(simpoint_file, "simpoint", "Create simpoint based checkpoints from given 'simpoint' file");
   add(simpoint_interval, "simpoint-interval", "Number of instructions in each interval");
   add(simpoint_chk_name, "simpoint-chk-name", "Checkpoint name prefix");
+#ifdef DRAMSIM
+  section("DRAMSim2 Config options");
+  add(dramsim_device_ini_file,  "dramsim-device-ini-file",   "Device ini file that DRAMSim2 should load");
+  add(dramsim_pwd,              "dramsim-pwd",               "Working directory that DRAMSim2 should execute in");
+  add(dramsim_system_ini_file,  "dramsim-system-ini-file",   "System ini file that DRAMSim2 should load"); 
+  add(dramsim_results_dir_name, "dramsim-results-dir-name",  "Name of the results directory where the DRAMSim2 output should go"); 
+#endif
 };
 
 #ifndef CONFIG_ONLY
 
-ostream& operator <<(ostream& os, const PTLsimConfig& config) {
-  return configparser.print(os, config);
+ostream& operator <<(ostream& os, const PTLsimConfig& c) {
+  return config.print(os, c);
 }
 
 static void print_banner(ostream& os) {
   utsname hostinfo;
   sys_uname(&hostinfo);
 
-  os << "//  ", endl;
-  os << "//  MARSS: Cycle Accurate Systems simulator for x86", endl;
-  os << "//  Copyright 1999-2007 Matt T. Yourst <yourst@yourst.com>", endl;
-  os << "//  Copyright 2009-2011 Avadh Patel <avadh4all@gmail.com>", endl;
-  os << "// ", endl;
-  os << "//  Git branch '", stringify(GITBRANCH), "' on date ", stringify(GITDATE)," (HEAD: ", stringify(GITCOMMIT), ")", endl;
-  os << "//  Built ", __DATE__, " ", __TIME__, " on ", stringify(BUILDHOST), " using gcc-",
-    stringify(__GNUC__), ".", stringify(__GNUC_MINOR__), endl;
-  os << "//  Running on ", hostinfo.nodename, ".", hostinfo.domainname, endl;
-  os << "//  ", endl;
+  os << "//  " << endl;
+  os << "//  MARSS: Cycle Accurate Systems simulator for x86" << endl;
+  os << "//  Copyright 1999-2007 Matt T. Yourst <yourst@yourst.com>" << endl;
+  os << "//  Copyright 2009-2011 Avadh Patel <avadh4all@gmail.com>" << endl;
+  os << "// " << endl;
+  os << "//  Git branch '" << stringify(GITBRANCH) << "' on date " << stringify(GITDATE) << " (HEAD: " << stringify(GITCOMMIT) << ")" << endl;
+  os << "//  Built " << __DATE__ << " " << __TIME__ << " on " << stringify(BUILDHOST) << " using gcc-" <<
+    stringify(__GNUC__) << "." << stringify(__GNUC_MINOR__) << endl;
+  os << "//  With " stringify(NUM_SIM_CORES) " simulated cores" << endl;
+  os << "//  Running on " << hostinfo.nodename << "." << hostinfo.domainname << endl;
+  os << "//  " << endl;
   os << endl;
   os << flush;
 }
@@ -401,15 +417,15 @@ static void collect_common_sysinfo() {
   simstats.run.timestamp = time;
   sb.reset(); sb << hostinfo.nodename, ".", hostinfo.domainname;
   simstats.run.hostname = sb;
-  W64 hz = get_core_freq_hz();
+  W64 hz = get_native_core_freq_hz();
   simstats.run.native_hz = hz;
 }
 
 void print_usage() {
-  cerr << "Syntax: simulate <arguments...>", endl;
-  cerr << "In the monitor mode give the above command with options given below", endl, endl;
+  cerr << "Syntax: simconfig <arguments...>" << endl;
+  cerr << "In the monitor mode give the above command with options given below" << endl << endl;
 
-  configparser.printusage(cerr, config);
+  config.printusage(cerr, config);
 }
 
 stringbuf current_stats_filename;
@@ -423,7 +439,7 @@ void backup_and_reopen_logfile() {
   if (config.log_filename) {
     if (ptl_logfile) ptl_logfile.close();
     stringbuf oldname;
-    oldname << config.log_filename, ".backup";
+    oldname << config.log_filename << ".backup";
     sys_unlink(oldname);
     sys_rename(config.log_filename, oldname);
     ptl_logfile.open(config.log_filename);
@@ -434,7 +450,7 @@ void backup_and_reopen_yamlstats() {
   if (config.yaml_stats_filename) {
     if (yaml_stats_file) yaml_stats_file.close();
     stringbuf oldname;
-    oldname << config.yaml_stats_filename, ".backup";
+    oldname << config.yaml_stats_filename << ".backup";
     sys_unlink(oldname);
     sys_rename(config.yaml_stats_filename, oldname);
     yaml_stats_file.open(config.yaml_stats_filename);
@@ -452,8 +468,8 @@ extern byte _binary_ptlsim_build_ptlsim_dst_end;
 
 void capture_stats_snapshot(const char* name) {
   if (logable(100)|1) {
-    if (name) ptl_logfile << "Snapshot named ", name;
-    ptl_logfile << " at cycle ", sim_cycle, endl;
+    if (name) ptl_logfile << "Snapshot named " << name;
+    ptl_logfile << " at cycle " << sim_cycle << endl;
   }
 
   /* TODO: Support stats snapshot in new Stats module */
@@ -483,6 +499,21 @@ void dump_yaml_stats()
     yaml_stats_file.flush();
 }
 
+/**
+ * @brief Save stats in flat plain text format
+ */
+void dump_text_stats()
+{
+	if (!config.yaml_stats_filename)
+		return;
+
+	(StatsBuilder::get()).dump(user_stats, yaml_stats_file, "user.");
+	(StatsBuilder::get()).dump(kernel_stats, yaml_stats_file, "kernel.");
+	(StatsBuilder::get()).dump(global_stats, yaml_stats_file, "total.");
+
+	yaml_stats_file.flush();
+}
+
 static void flush_stats()
 {
     if(config.screenshot_file.set()) {
@@ -496,7 +527,14 @@ static void flush_stats()
     // Call this function to setup tags and other info
     setup_sim_stats();
 
-    dump_yaml_stats();
+	if (config.stats_format == "text") {
+		dump_text_stats();
+	} else {
+		if (config.stats_format != "yaml")
+			ptl_logfile << "Unknown Stats format: " << config.stats_format <<
+				" dumping in default YAML format." << endl;
+		dump_yaml_stats();
+	}
 
     if(config.enable_mongo)
         write_mongo_stats();
@@ -504,10 +542,9 @@ static void flush_stats()
     if(time_stats_file) {
         time_stats_file->close();
     }
-
-//FIXME: this assumes that flush_stats is only called at the end, which is true now but might not be true in the long run
+    //FIXME: this assumes that flush_stats is only called at the end, which is true now but might not be true in the long run
 #ifdef DRAMSIM
-    machine->simulation_done();
+    ((BaseMachine*)machine)->simulation_done();
 #endif
 
     ptl_logfile << "Stats Summary:\n";
@@ -537,9 +574,15 @@ static void kill_simulation()
 
     shutdown_decode();
 
+	PTLsimMachine* machine = PTLsimMachine::getmachine(config.core_name.buf);
+	if (machine)
+		machine->shutdown();
+
     ptl_logfile.flush();
     ptl_logfile.close();
+
     sync_remove();
+
     ptl_quit();
 }
 
@@ -567,6 +610,12 @@ bool handle_config_change(PTLsimConfig& config) {
           !config.stats_filename.set()) {
     backup_and_reopen_yamlstats();
     current_yaml_stats_filename = config.yaml_stats_filename;
+  }
+
+  /* There is a pending request to dump current stats to a file. */
+  if ((config.stats_filename.set() || config.yaml_stats_filename.set()) && config.dump_state_now) {
+	config.dump_state_now = 0;
+	flush_stats();
   }
 
 if ((config.loglevel > 0) & (config.start_log_at_rip == INVALIDRIP) & (config.start_log_at_iteration == infinity)) {
@@ -627,7 +676,7 @@ if ((config.loglevel > 0) & (config.start_log_at_rip == INVALIDRIP) & (config.st
     if (!config.quiet) {
       print_sysinfo(cerr);
       if (!(config.run | config.kill))
-        cerr << "Simulator is now waiting for a 'run' command.", endl, flush;
+        cerr << "Simulator is now waiting for a 'run' command." << endl << flush;
     }
     print_banner(ptl_logfile);
     print_sysinfo(ptl_logfile);
@@ -639,8 +688,8 @@ if ((config.loglevel > 0) & (config.start_log_at_rip == INVALIDRIP) & (config.st
 
   int total = config.run + config.stop + config.kill;
   if (total > 1) {
-    ptl_logfile << "Warning: only one action (from -run, -stop, -kill) can be specified at once", endl, flush;
-    cerr << "Warning: only one action (from -run, -stop, -kill) can be specified at once", endl, flush;
+    ptl_logfile << "Warning: only one action (from -run, -stop, -kill) can be specified at once" << endl << flush;
+    cerr << "Warning: only one action (from -run, -stop, -kill) can be specified at once" << endl << flush;
   }
 
   if(config.checker_enabled) {
@@ -651,7 +700,7 @@ if ((config.loglevel > 0) & (config.start_log_at_rip == INVALIDRIP) & (config.st
   }
 
   if (config.core_freq_hz == 0) {
-      config.core_freq_hz = get_core_freq_hz();
+      config.core_freq_hz = get_native_core_freq_hz();
   }
 
   return true;
@@ -806,9 +855,14 @@ void ptl_reconfigure(const char* config_str) {
     strcpy(argv, config_str);
     argv[strlen(config_str)] = '\0';
 
-	configparser.parse(config, argv);
+	config.parse(config, argv);
 	handle_config_change(config);
-	ptl_logfile << "Configuration changed: ", config, endl;
+
+	BaseMachine* machine = (BaseMachine*)(PTLsimMachine::getmachine(
+				config.core_name));
+	machine->config_changed();
+
+	ptl_logfile << "Configuration changed: " << config << endl;
 
     if (config.sync_interval && sem_id == -1) {
         sync_setup();
@@ -830,17 +884,12 @@ extern "C" void ptl_machine_configure(const char* config_str_) {
     char *config_str = (char*)qemu_mallocz(strlen(config_str_) + 1);
     pstrcpy(config_str, strlen(config_str_)+1, config_str_);
 
-    if(!ptl_machine_configured) {
-        configparser.setup();
-        config.reset();
-    }
-
     // Setup the configuration
     ptl_reconfigure(config_str);
 
     // After reconfigure reset the machine's initalized variable
     if (config.help){
-        configparser.printusage(cerr, config);
+        config.printusage(cerr, config);
         config.help=0;
     }
 /*
@@ -938,12 +987,12 @@ void setup_checker(W8 contextid) {
       memcpy(checker_context, ptl_contexts[contextid], sizeof(Context));
 
       if(logable(10)) {
-	ptl_logfile << "Checker context setup\n", *checker_context, endl;
+	ptl_logfile << "Checker context setup\n" << *checker_context << endl;
       }
     }
 
     if(logable(10)) {
-      ptl_logfile << "No change to checker context ", checker_context->kernel_mode, endl;
+      ptl_logfile << "No change to checker context " << checker_context->kernel_mode << endl;
     }
 }
 
@@ -1031,11 +1080,11 @@ void compare_checker(W8 context_id, W64 flagmask) {
     //fail |= (flag1 != flag2);
 
     if(ret != 0 || ret1 != 0 || ret_x87 != 0 || fail) {
-        ptl_logfile << "Checker comparison failed [diff-chars: ", ret, "] ";
-        ptl_logfile << "[xmm:", ret1, "] [x87:", ret_x87,"] ";
-        ptl_logfile << "[flags:", fail, "]\n";
-        ptl_logfile << "CPU Context:\n", *ptl_contexts[context_id], endl;
-        ptl_logfile << "Checker Context:\n", *checker_context, endl, flush;
+        ptl_logfile << "Checker comparison failed [diff-chars: " << ret << "] ";
+        ptl_logfile << "[xmm:" << ret1 << "] [x87:" << ret_x87 << "] ";
+        ptl_logfile << "[flags:" << fail << "]\n";
+        ptl_logfile << "CPU Context:\n" << *ptl_contexts[context_id] << endl;
+        ptl_logfile << "Checker Context:\n" << *checker_context << endl << flush;
 
         cout << "\n*******************Failed checker***************\n";
         memset(checker_context, 0, sizeof(Context));
@@ -1090,10 +1139,10 @@ void write_mongo_stats() {
     opts.port = config.mongo_port;
 
     if(mongo_connect(conn, &opts)){
-        cerr << "Failed to connect to MongoDB server at ", opts.host,
-             ":", opts.port, " , **Skipping Mongo Datawrite**", endl;
-        ptl_logfile << "Failed to connect to MongoDB server at ", opts.host,
-             ":", opts.port, " , **Skipping Mongo Datawrite**", endl;
+        cerr << "Failed to connect to MongoDB server at " << opts.host <<
+             ":" << opts.port << " , **Skipping Mongo Datawrite**" << endl;
+        ptl_logfile << "Failed to connect to MongoDB server at " << opts.host <<
+             ":" << opts.port << " , **Skipping Mongo Datawrite**" << endl;
         config.enable_mongo = 0;
         return;
     }
@@ -1147,7 +1196,7 @@ static void set_run_stats()
 {
     static W64 seconds = 0;
     W64 tsc_at_end = rdtsc();
-    seconds += W64(ticks_to_seconds(tsc_at_end - tsc_at_start));
+    seconds += W64(ticks_to_native_seconds(tsc_at_end - tsc_at_start));
     W64 cycles_per_sec = W64(double(sim_cycle) / double(seconds));
     W64 commits_per_sec = W64(
             double(total_insns_committed) / double(seconds));
@@ -1249,8 +1298,8 @@ extern "C" uint8_t ptl_simulate() {
 	}
 
 	if (!machine) {
-		ptl_logfile << "Cannot find core named '", machinename, "'", endl;
-		cerr << "Cannot find core named '", machinename, "'", endl;
+		ptl_logfile << "Cannot find core named '" << machinename << "'" << endl;
+		cerr << "Cannot find core named '" << machinename << "'" << endl;
 		return 0;
 	}
 
@@ -1260,9 +1309,9 @@ extern "C" uint8_t ptl_simulate() {
     }
 
 	if (!machine->initialized) {
-		ptl_logfile << "Initializing core '", machinename, "'", endl;
+		ptl_logfile << "Initializing core '" << machinename << "'" << endl;
 		if (!machine->init(config)) {
-			ptl_logfile << "Cannot initialize simulation machine; check the configuration!", endl;
+			ptl_logfile << "Cannot initialize simulation machine; check the configuration!" << endl;
             config.run = 0;
 			return 0;
 		}
@@ -1270,17 +1319,17 @@ extern "C" uint8_t ptl_simulate() {
 		machine->first_run = 1;
 
 		if(logable(1)) {
-			ptl_logfile << "Switching to simulation core '", machinename, "'...", endl, flush;
-			cerr <<  "Switching to simulation core '", machinename, "'...", endl, flush;
-			ptl_logfile << "Stopping after ", config.stop_at_insns, " commits", endl, flush;
-			cerr << "Stopping after ", config.stop_at_insns, " commits", endl, flush;
+			ptl_logfile << "Switching to simulation core '" << machinename << "'..." << endl << flush;
+			cerr <<  "Switching to simulation core '" << machinename << "'..." << endl << flush;
+			ptl_logfile << "Stopping after " << config.stop_at_insns << " commits" << endl << flush;
+			cerr << "Stopping after " << config.stop_at_insns << " commits" << endl << flush;
 		}
 
 		/* Dump Machine configuration */
 		dump_machine_configuration(machine);
 
 		/* Update stats every half second: */
-		ticks_per_update = seconds_to_ticks(0.2);
+		ticks_per_update = seconds_to_native_ticks(0.2);
 		last_printed_status_at_ticks = 0;
 		last_printed_status_at_insn = 0;
 		last_printed_status_at_cycle = 0;
@@ -1296,7 +1345,7 @@ extern "C" uint8_t ptl_simulate() {
 
             host = gethostbyname(config.mongo_server.buf);
             if(host == NULL) {
-                cerr << "MongoDB Server host ", config.mongo_server, " is unreachable.", endl;
+                cerr << "MongoDB Server host " << config.mongo_server << " is unreachable." << endl;
                 config.enable_mongo = 0;
             } else {
                 config.mongo_server = inet_ntoa(*((in_addr *)host->h_addr));
@@ -1305,8 +1354,8 @@ extern "C" uint8_t ptl_simulate() {
                 opts.port = config.mongo_port;
 
                 if (mongo_connect( conn , &opts )){
-                    cerr << "Failed to connect to MongoDB server at ", opts.host,
-                         ":", opts.port, " , **Disabling Mongo Support**", endl;
+                    cerr << "Failed to connect to MongoDB server at " << opts.host <<
+                         ":" << opts.port << " , **Disabling Mongo Support**" << endl;
                     config.enable_mongo = 0;
                 } else {
                     mongo_destroy(conn);
@@ -1341,9 +1390,9 @@ extern "C" uint8_t ptl_simulate() {
     if(logable(1)) {
 		ptl_logfile << "Starting simulation at rip: ";
 		foreach(i, contextcount) {
-			ptl_logfile  << "[cpu ", i, "]", (void*)(contextof(i).eip), " ";
+			ptl_logfile  << "[cpu " << i << "]" << (void*)(contextof(i).eip) << " ";
 		}
-        ptl_logfile << " sim_cycle: ", sim_cycle;
+        ptl_logfile << " sim_cycle: " << sim_cycle;
 		ptl_logfile << endl;
     }
 #ifdef ENABLE_GPERF
@@ -1363,11 +1412,11 @@ extern "C" uint8_t ptl_simulate() {
 
 	if (!machine->stopped) {
         if(logable(1)) {
-			ptl_logfile << "Switching back to qemu rip: ", (void *)contextof(0).get_cs_eip(), " exception: ", contextof(0).exception_index,
-						" ex: ", contextof(0).exception, " running: ",
+			ptl_logfile << "Switching back to qemu rip: " << (void *)contextof(0).get_cs_eip() << " exception: " << contextof(0).exception_index <<
+						" ex: " << contextof(0).exception << " running: " <<
 						contextof(0).running;
-            ptl_logfile << " sim_cycle: ", sim_cycle;
-            ptl_logfile << endl, flush;
+            ptl_logfile << " sim_cycle: " << sim_cycle;
+            ptl_logfile << endl << flush;
         }
 
 		/* Tell QEMU that we will come back to simulate */
@@ -1378,13 +1427,14 @@ extern "C" uint8_t ptl_simulate() {
 	W64 tsc_at_end = rdtsc();
 	curr_ptl_machine = NULL;
 
-	W64 seconds = W64(ticks_to_seconds(tsc_at_end - tsc_at_start));
+	W64 seconds = W64(ticks_to_native_seconds(tsc_at_end - tsc_at_start));
 	stringbuf sb;
-	sb << endl, "Stopped after ", sim_cycle, " cycles, ", total_insns_committed, " instructions and ",
-	   seconds, " seconds of sim time (cycle/sec: ", W64(double(sim_cycle) / double(seconds)), " Hz, insns/sec: ", W64(double(total_insns_committed) / double(seconds)), ", insns/cyc: ",  double(total_insns_committed) / double(sim_cycle), ")", endl;
+	sb << endl << "Stopped after " << sim_cycle << " cycles, " << total_insns_committed << " instructions and " <<
+	   seconds << " seconds of sim time (cycle/sec: " << W64(double(sim_cycle) / double(seconds)) << " Hz, insns/sec: " << 
+       W64(double(total_insns_committed) / double(seconds)) << ", insns/cyc: " <<  double(total_insns_committed) / double(sim_cycle) << ")" << endl;
 
-	ptl_logfile << sb, flush;
-	cerr << sb, flush;
+	ptl_logfile << sb << flush;
+	cerr << sb << flush;
 
 	if (config.dumpcode_filename.set()) {
 		//    byte insnbuf[256];
@@ -1426,13 +1476,13 @@ extern "C" void update_progress() {
   W64s delta = (ticks - last_printed_status_at_ticks);
   if unlikely (delta < 0) delta = 0;
   if unlikely (delta >= (W64s)ticks_per_update) {
-    double seconds = ticks_to_seconds(delta);
+    double seconds = ticks_to_native_seconds(delta);
     double cycles_per_sec = (sim_cycle - last_printed_status_at_cycle) / seconds;
     double insns_per_sec = (total_insns_committed - last_printed_status_at_insn) / seconds;
 
     stringbuf sb;
-    sb << "Completed ", intstring(sim_cycle, 13), " cycles, ", intstring(total_insns_committed, 13), " commits: ",
-      intstring((W64)cycles_per_sec, 9), " Hz, ", intstring((W64)insns_per_sec, 9), " insns/sec";
+    sb << "Completed " << intstring(sim_cycle, 13) << " cycles, " << intstring(total_insns_committed, 13) << " commits: " <<
+      intstring((W64)cycles_per_sec, 9) << " Hz, " << intstring((W64)insns_per_sec, 9) << " insns/sec";
 
     sb << ": rip";
     foreach (i, contextcount) {
@@ -1442,20 +1492,20 @@ extern "C" void update_progress() {
 		  static const char* runstate_names[] = {"stopped", "running"};
 		  const char* runstate_name = runstate_names[ctx.running];
 
-		  sb << " (", runstate_name, ":",ctx.running, ")";
+		  sb << " (" << runstate_name << ":" << ctx.running << ")";
 		  if(!sim_cycle){
 			  ctx.running = 1;
 		  }
 		  continue;
       }
-      sb << ' ', hexstring(contextof(i).get_cs_eip(), 64);
+      sb << ' ' << hexstring(contextof(i).get_cs_eip(), 64);
     }
 
     //while (sb.size() < 160) sb << ' ';
 
     ptl_logfile << sb, endl;
     if (!config.quiet) {
-        cerr << "\r  ", sb;
+        cerr << "\r  " << sb;
     }
 
     last_printed_status_at_ticks = ticks;
