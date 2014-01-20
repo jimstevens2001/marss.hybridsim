@@ -86,6 +86,9 @@ static void kill_simulation();
 static void write_mongo_stats();
 static void setup_sim_stats();
 
+// JimMod: Declare create_checkpoint so it can be called in ptl_simulate().
+void create_checkpoint(const char* chk_name);
+
 /* Stats structure for Simulation Statistics */
 struct SimStats : public Statable
 {
@@ -241,6 +244,9 @@ void PTLsimConfig::reset() {
   simpoint_file = "";
   simpoint_interval = 10e6;
   simpoint_chk_name = "simpoint";
+
+  // JimMod: checkpoint_after_run
+  checkpoint_after_run = "";
 }
 
 #ifdef DRAMSIM
@@ -357,6 +363,11 @@ void ConfigurationParser<PTLsimConfig>::setup() {
   add(simpoint_file, "simpoint", "Create simpoint based checkpoints from given 'simpoint' file");
   add(simpoint_interval, "simpoint-interval", "Number of instructions in each interval");
   add(simpoint_chk_name, "simpoint-chk-name", "Checkpoint name prefix");
+
+  // JimMod
+  section("marss.hybridsim mods");
+  add(checkpoint_after_run, "checkpoint-after-run", "Checkpoint when simulation finishes.");
+  
 };
 
 #ifndef CONFIG_ONLY
@@ -1385,6 +1396,12 @@ extern "C" uint8_t ptl_simulate() {
 
 	ptl_logfile << sb, flush;
 	cerr << sb, flush;
+
+	// JimMod: Call create_checkpoint() if -checkpoint-after-run is set.
+	if (config.checkpoint_after_run.size() > 0)
+	{
+		create_checkpoint(config.checkpoint_after_run.buf);
+	}
 
 	if (config.dumpcode_filename.set()) {
 		//    byte insnbuf[256];

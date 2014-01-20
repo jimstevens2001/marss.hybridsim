@@ -288,6 +288,9 @@ struct PTLsimConfig {
   W64 simpoint_interval;
   stringbuf simpoint_chk_name;
 
+  // JimMod: checkpoint_after_run
+  stringbuf checkpoint_after_run;
+
   void reset();
 };
 
