@@ -205,7 +205,7 @@ bool MemoryController::handle_interconnect_cb(void *arg)
 	// 	of a transaction and maybe make sure it matches the LLC line size
 	physicalAddress = ALIGN_ADDRESS(physicalAddress, dramsim_transaction_size); 
 
-	bool isWrite = memRequest->get_type() == MEMORY_OP_WRITE || memRequest->get_type() == MEMORY_OP_UPDATE;
+	bool isWrite = memRequest->get_type() == MEMORY_OP_UPDATE; // Bugfix: See marss.dramsim comment.
 	bool accepted = mem->addTransaction(isWrite,physicalAddress);
 	queueEntry->inUse = true;
 	assert(accepted);
