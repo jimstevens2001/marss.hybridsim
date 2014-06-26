@@ -64,6 +64,8 @@ CacheController::CacheController(W8 coreid, const char *name,
 
     cacheLines_ = get_cachelines(type);
 
+	last_invalidate_cycle = sim_cycle;
+
     if(!memoryHierarchy_->get_machine().get_option(name, "last_private", isLowestPrivate_)) {
         isLowestPrivate_ = false;
     }
@@ -370,6 +372,12 @@ int CacheController::access_fast_path(Interconnect *interconnect,
 {
 	memdebug("Accessing Cache " << get_name() << " : Request: " << *request << endl);
 	bool hit = false;
+
+	if (sim_cycle - last_invalidate_cycle > INVALIDATE_PERIOD) {
+		invalidate_all();
+		last_invalidate_cycle = sim_cycle;
+	}
+
 
     if (find_dependency(request) != NULL) {
         return -1;

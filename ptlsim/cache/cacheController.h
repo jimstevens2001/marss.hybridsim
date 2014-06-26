@@ -28,6 +28,9 @@
 #ifndef CACHE_CONTROLLER_H
 #define CACHE_CONTROLLER_H
 
+// Hardcoding invalidate period to be 4 ms (this is in 0.5 ns cycles)
+#define INVALIDATE_PERIOD 8000000
+
 #include <logic.h>
 
 #include <controller.h>
@@ -138,6 +141,8 @@ class CacheController : public Controller
 
 		CacheType type_;
 		CacheLinesBase *cacheLines_;
+
+		W64 last_invalidate_cycle;
 
 		// No of bits needed to find Cache Line address
 		int cacheLineBits_;
@@ -256,6 +261,10 @@ class CacheController : public Controller
 				os << "\t\tupper2: " << upperInterconnect2_->get_name() << endl;
 			if(lowerInterconnect_)
 				os << "\t\tlower: " <<  lowerInterconnect_->get_name() << endl;
+		}
+
+		void invalidate_all() {
+			cacheLines_->init();
 		}
 
 };
