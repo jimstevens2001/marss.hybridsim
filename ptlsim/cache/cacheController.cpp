@@ -60,6 +60,8 @@ CacheController::CacheController(W8 coreid, const char *name,
 	, prefetchDelay_(1)
     , new_stats(name, &memoryHierarchy->get_machine())
 {
+	std::cerr << "Initializing cache " << get_name() << ".\n";
+
     memoryHierarchy_->add_cache_mem_controller(this);
 
     cacheLines_ = get_cachelines(type);
@@ -171,6 +173,13 @@ bool CacheController::handle_interconnect_cb(void *arg)
 {
 	Message *msg = (Message*)arg;
 	Interconnect *sender = (Interconnect*)msg->sender;
+
+	if (sim_cycle - last_invalidate_cycle > INVALIDATE_PERIOD) {
+		invalidate_all();
+		last_invalidate_cycle = sim_cycle;
+		std::cerr << "Invalidating cache " << get_name() << " at cycle" << sim_cycle <<".\n";
+	}
+
 
 	memdebug("Message received is: ", *msg);
 
@@ -372,11 +381,6 @@ int CacheController::access_fast_path(Interconnect *interconnect,
 {
 	memdebug("Accessing Cache " << get_name() << " : Request: " << *request << endl);
 	bool hit = false;
-
-	if (sim_cycle - last_invalidate_cycle > INVALIDATE_PERIOD) {
-		invalidate_all();
-		last_invalidate_cycle = sim_cycle;
-	}
 
 
     if (find_dependency(request) != NULL) {
